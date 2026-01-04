@@ -1,28 +1,42 @@
-use axum::Router;
+use actix_web::{App, HttpServer, Responder, get};
 use tokio::join;
 
-mod routes;
-mod db;
 mod cron;
+mod db;
+
+#[get("/")]
+async fn hello() -> impl Responder {
+    "Hello from Actix Web!"
+}
+
+#[get("/health")]
+async fn health() -> impl Responder {
+    "OK"
+}
+
+#[get("/city")]
+async fn city() -> impl Responder {
+    "Indore: Sample route for city info"
+}
 
 #[tokio::main]
-async fn main() {
+async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
 
     let pool = db::connect_db().await;
 
-    let app = routes::create_routes();
-
     let server = async {
-        axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-            .serve(app.into_make_service())
+        HttpServer::new(|| App::new().service(hello).service(health).service(city))
+            .bind(("0.0.0.0", 3000))?
+            .run()
             .await
-            .unwrap();
     };
 
     let cron = async {
         cron::scheduler::start_scheduler(pool).await;
     };
 
-    join!(server, crom);
+    join!(server, cron);
+
+    Ok(())
 }
